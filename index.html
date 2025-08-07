@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WellnessHub: AI-Powered Assistant</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* Custom CSS for fine-tuning and scroll behavior */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8; /* Light blue-gray background */
+        }
+        .chat-container {
+            max-height: calc(100vh - 180px); /* Adjust based on header/footer height */
+            overflow-y: auto;
+            scroll-behavior: smooth;
+            -ms-overflow-style: none;  /* IE and Edge */
+            scrollbar-width: none;  /* Firefox */
+        }
+        .chat-container::-webkit-scrollbar {
+            display: none; /* Chrome, Safari, Opera */
+        }
+        .user-message {
+            background-color: #3b82f6; /* Blue-500 */
+            color: white;
+            border-bottom-right-radius: 0;
+        }
+        .ai-message {
+            background-color: #e2e8f0; /* Gray-200 */
+            color: #334155; /* Slate-700 */
+            border-bottom-left-radius: 0;
+        }
+        .loading-spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            border-left-color: #3b82f6;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="flex flex-col min-h-screen items-center justify-center p-4 bg-gradient-to-br from-blue-100 to-purple-100">
+
+    <div class="w-full max-w-2xl bg-white rounded-xl shadow-2xl overflow-hidden flex flex-col h-[90vh]">
+        <!-- Header -->
+        <header class="bg-gradient-to-r from-blue-600 to-purple-600 p-4 text-white text-center rounded-t-xl shadow-md">
+            <h1 class="text-3xl font-bold">WellnessHub 🧠❤️</h1>
+            <p class="text-sm opacity-90 mt-1">Your AI-Powered Medical & Emotional Support Assistant</p>
+        </header>
+
+        <!-- Chat Display Area -->
+        <div id="chat-messages" class="chat-container flex-grow p-6 space-y-4">
+            <!-- Initial welcome message -->
+            <div class="flex justify-start">
+                <div class="ai-message p-3 rounded-lg max-w-[80%] shadow-sm">
+                    <p>Hello! I'm WellnessHub, your AI assistant. How can I support you today? Please remember, I'm an AI and cannot provide professional medical diagnosis or treatment. Always consult a healthcare professional for specific medical concerns.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Input Area -->
+        <div class="p-4 bg-gray-50 border-t border-gray-200 flex items-center space-x-3 rounded-b-xl shadow-inner">
+            <input
+                type="text"
+                id="user-input"
+                placeholder="Ask me anything..."
+                class="flex-grow p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200 text-gray-800"
+                onkeydown="if(event.key === 'Enter') sendMessage()"
+            />
+            <button
+                id="send-button"
+                onclick="sendMessage()"
+                class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-75"
+            >
+                Send
+            </button>
+        </div>
+
+        <!-- Loading Indicator -->
+        <div id="loading-indicator" class="hidden flex justify-center items-center p-2 bg-gray-100 rounded-b-xl">
+            <div class="loading-spinner"></div>
+            <span class="ml-2 text-gray-600 text-sm">Thinking...</span>
+        </div>
+    </div>
+
+    <script>
+        const chatMessages = document.getElementById('chat-messages');
+        const userInput = document.getElementById('user-input');
+        const sendButton = document.getElementById('send-button');
+        const loadingIndicator = document.getElementById('loading-indicator');
+
+        // Function to display messages in the chat interface
+        function displayMessage(message, sender) {
+            const messageDiv = document.createElement('div');
+            messageDiv.classList.add('flex', sender === 'user' ? 'justify-end' : 'justify-start');
+
+            const contentDiv = document.createElement('div');
+            contentDiv.classList.add(
+                'p-3',
+                'rounded-lg',
+                'max-w-[80%]',
+                'shadow-md',
+                sender === 'user' ? 'user-message' : 'ai-message'
+            );
+            contentDiv.innerHTML = `<p>${message}</p>`; // Use innerHTML to allow for basic formatting if needed later
+
+            messageDiv.appendChild(contentDiv);
+            chatMessages.appendChild(messageDiv);
+
+            // Scroll to the bottom of the chat
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        // Function to send message to the backend
+        async function sendMessage() {
+            const message = userInput.value.trim();
+            if (message === '') return;
+
+            displayMessage(message, 'user');
+            userInput.value = ''; // Clear input field
+
+            // Disable input and show loading indicator
+            userInput.disabled = true;
+            sendButton.disabled = true;
+            loadingIndicator.classList.remove('hidden');
+
+            try {
+                // Adjust this URL if your FastAPI backend is running on a different port/host
+                const response = await fetch('http://localhost:8000/api/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ message: message }),
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Something went wrong with the API request.');
+                }
+
+                const data = await response.json();
+                displayMessage(data.response, 'ai');
+
+            } catch (error) {
+                console.error('Error:', error);
+                displayMessage(`Sorry, I encountered an error: ${error.message}. Please try again.`, 'ai');
+            } finally {
+                // Re-enable input and hide loading indicator
+                userInput.disabled = false;
+                sendButton.disabled = false;
+                loadingIndicator.classList.add('hidden');
+                userInput.focus(); // Focus back on the input for quick follow-up
+            }
+        }
+    </script>
+</body>
+</html>
